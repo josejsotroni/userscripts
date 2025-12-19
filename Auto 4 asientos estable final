@@ -1,0 +1,93 @@
+// ==UserScript==
+// @name         Real Madrid - Auto 4 asientos ESTABLE (FINAL)
+// @namespace    rm-auto-4-stable
+// @version      4.0
+// @match        https://tickets.realmadrid.com/*
+// @grant        none
+// @run-at       document-idle
+// ==/UserScript==
+
+(function () {
+    'use strict';
+
+    const MAX = 4;
+    const REFRESH_DELAY = 7000;
+    const SEAT_SELECTOR = 'circle.seat.available';
+
+    let savedSeats = JSON.parse(localStorage.getItem('rm_saved_seats') || '[]');
+
+    console.log('🟢 AUTO 4 ASIENTOS ESTABLE ACTIVO');
+
+    function seatKey(seat) {
+        const b = seat.getBBox();
+        return `${Math.round(b.x)}-${Math.round(b.y)}`;
+    }
+
+    function realClick(el) {
+        const r = el.getBoundingClientRect();
+        const x = r.left + r.width / 2;
+        const y = r.top + r.height / 2;
+        ['mousedown','mouseup','click'].forEach(e =>
+            el.dispatchEvent(new MouseEvent(e, {
+                bubbles: true,
+                cancelable: true,
+                clientX: x,
+                clientY: y
+            }))
+        );
+    }
+
+    function getSeats() {
+        return Array.from(document.querySelectorAll(SEAT_SELECTOR));
+    }
+
+    function reselectSaved() {
+        const seats = getSeats();
+        seats.forEach(seat => {
+            const key = seatKey(seat);
+            if (savedSeats.includes(key)) {
+                realClick(seat);
+            }
+        });
+    }
+
+    function addNewSeats() {
+        const seats = getSeats();
+
+        for (const seat of seats) {
+            if (savedSeats.length >= MAX) break;
+
+            const key = seatKey(seat);
+            if (!savedSeats.includes(key)) {
+                realClick(seat);
+                savedSeats.push(key);
+                console.log(`➕ Añadido (${savedSeats.length}/${MAX})`);
+            }
+        }
+
+        localStorage.setItem('rm_saved_seats', JSON.stringify(savedSeats));
+    }
+
+    function loop() {
+        console.log(`🔁 Loop | Guardados: ${savedSeats.length}`);
+
+        // 1️⃣ SIEMPRE re-selecciona primero
+        reselectSaved();
+
+        // 2️⃣ Luego intenta añadir nuevos
+        addNewSeats();
+
+        // 3️⃣ Si faltan → refresh
+        if (savedSeats.length < MAX) {
+            console.log('🔄 Faltan asientos → refrescando');
+            setTimeout(() => location.reload(), 1200);
+        } else {
+            console.log('✅ 4 ASIENTOS CONSEGUIDOS – PARADO');
+            localStorage.removeItem('rm_saved_seats');
+        }
+    }
+
+    // Espera a que cargue el mapa
+    setTimeout(loop, REFRESH_DELAY);
+
+})();
